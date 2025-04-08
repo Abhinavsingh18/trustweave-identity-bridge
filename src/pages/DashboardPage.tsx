@@ -261,8 +261,9 @@ const DashboardPage = () => {
                   "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
                 }>
                   {selectedVerification.status === "verified" && (
-                    <><CheckCircle className="h-3.5 w-3.5 mr-1" /> Verified</>
+                    <CheckCircle className="h-3.5 w-3.5 mr-1" /> 
                   )}
+                  {selectedVerification.status === "verified" && "Verified"}
                   {selectedVerification.status === "pending" && "Pending"}
                   {selectedVerification.status === "rejected" && "Rejected"}
                 </Badge>
