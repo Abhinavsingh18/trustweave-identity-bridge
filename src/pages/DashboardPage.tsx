@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -134,21 +135,23 @@ const DashboardPage = () => {
               <div>
                 <p className="text-sm font-medium leading-none">{user?.email}</p>
                 <p className="text-sm text-muted-foreground">
-                  {verificationStatus === "verified" ? (
+                  {verificationStatus === "verified" && (
                     <span className="flex items-center">
                       <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 mr-2">
                         Verified
                       </Badge>
                       Account Verified
                     </span>
-                  ) : verificationStatus === "pending" ? (
+                  )}
+                  {verificationStatus === "pending" && (
                     <span className="flex items-center">
                       <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200 mr-2">
                         Pending
                       </Badge>
                       Verification in progress
                     </span>
-                  ) : (
+                  )}
+                  {verificationStatus === "rejected" && (
                     <span className="flex items-center">
                       <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 mr-2">
                         Unverified
