@@ -10,7 +10,7 @@ type VerificationStatusProps = {
 const VerificationStatus = ({ status, className }: VerificationStatusProps) => {
   if (status === "verified") {
     return (
-      <div className={cn("verification-badge", className)}>
+      <div className={cn("inline-flex items-center justify-center rounded-full bg-green-100 px-2.5 py-0.5 text-green-700 dark:bg-green-900 dark:text-green-300", className)}>
         <CheckCircle className="w-4 h-4 mr-1" />
         <span>Verified</span>
       </div>
@@ -19,7 +19,7 @@ const VerificationStatus = ({ status, className }: VerificationStatusProps) => {
 
   if (status === "pending") {
     return (
-      <div className={cn("verification-badge-pending", className)}>
+      <div className={cn("inline-flex items-center justify-center rounded-full bg-amber-100 px-2.5 py-0.5 text-amber-700 dark:bg-amber-900 dark:text-amber-300", className)}>
         <Clock className="w-4 h-4 mr-1" />
         <span>Pending</span>
       </div>

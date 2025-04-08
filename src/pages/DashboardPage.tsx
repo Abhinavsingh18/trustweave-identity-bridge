@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import Layout from "@/components/Layout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -258,11 +257,12 @@ const DashboardPage = () => {
                 </div>
                 <Badge variant={selectedVerification.status === "verified" ? "default" : "outline"} className={
                   selectedVerification.status === "verified" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" :
-                  "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300"
+                  selectedVerification.status === "pending" ? "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300" :
+                  "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
                 }>
                   {selectedVerification.status === "verified" ? (
                     <><CheckCircle className="h-3.5 w-3.5 mr-1" /> Verified</>
-                  ) : "Pending"}
+                  ) : selectedVerification.status === "pending" ? "Pending" : "Rejected"}
                 </Badge>
               </div>
 

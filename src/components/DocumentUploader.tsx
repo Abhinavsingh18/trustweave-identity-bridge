@@ -97,21 +97,21 @@ const DocumentUploader = ({ onUpload, documentType }: DocumentUploaderProps) => 
               <br />
               JPG, PNG or PDF (max 5MB)
             </p>
-            <Button
-              as="label"
-              htmlFor={`file-upload-${documentType}`}
-              variant="outline"
-              className="cursor-pointer"
-            >
-              Browse Files
+            <div className="relative">
+              <Button
+                variant="outline"
+                className="cursor-pointer"
+              >
+                Browse Files
+              </Button>
               <input
                 id={`file-upload-${documentType}`}
                 type="file"
-                className="hidden"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 onChange={handleChange}
                 accept=".jpg,.jpeg,.png,.pdf"
               />
-            </Button>
+            </div>
           </div>
         ) : (
           <div className="flex items-center justify-between p-4">
