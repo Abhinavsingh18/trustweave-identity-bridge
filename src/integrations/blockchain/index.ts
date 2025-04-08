@@ -20,22 +20,48 @@ export const getVerificationStatus = async (email: string): Promise<"verified" |
   
   if (!email) return "rejected";
   
-  // Simple demo logic: use the hash of the email to determine status
-  // In a real app, this would be replaced with actual verification logic
+  try {
+    // Try to get verification status from Supabase
+    const { supabase } = await import("@/integrations/supabase/client");
+    
+    // Get the user ID from the email
+    const { data: authData } = await supabase.auth.getUser();
+    if (!authData?.user?.id) {
+      return "rejected";
+    }
+    
+    // Get the user's verification records
+    const { data: verifications, error } = await supabase
+      .from('verifications')
+      .select('status')
+      .eq('user_id', authData.user.id)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    
+    if (error || !verifications || verifications.length === 0) {
+      // Fall back to the hash method if no verifications found
+      return hashBasedStatus(email);
+    }
+    
+    return verifications[0].status as "verified" | "pending" | "rejected";
+  } catch (error) {
+    console.error("Error checking verification status:", error);
+    // Fall back to hash method
+    return hashBasedStatus(email);
+  }
+};
+
+// Helper function for determining status based on email hash
+function hashBasedStatus(email: string): "verified" | "pending" | "rejected" {
   const emailHash = hashString(email);
-  
-  // Convert the hash to a number and use modulo to distribute statuses
   const statusCode = parseInt(emailHash.substring(0, 8), 16) % 3;
-  
-  // Simulate a delay like we would have in a real blockchain query
-  await new Promise(resolve => setTimeout(resolve, 500));
   
   switch (statusCode) {
     case 0: return "verified";
     case 1: return "pending";
     default: return "rejected";
   }
-};
+}
 
 /**
  * Helper function to create a deterministic hash of a string

@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +9,10 @@ import DocumentUploader from "@/components/DocumentUploader";
 import VerificationStep from "@/components/VerificationStep";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { verifyDocument } from "@/integrations/blockchain";
 
 const VerifyPage = () => {
   const [step, setStep] = useState(1);
@@ -23,8 +26,18 @@ const VerifyPage = () => {
     nationality: "",
     address: ""
   });
-  const { toast } = useToast();
+  const { toast: hookToast } = useToast();
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!loading && !user) {
+      toast.error("Please sign in to verify your identity");
+      navigate("/auth");
+    }
+  }, [user, loading, navigate]);
 
   const handleFileUpload = (type: "idCard" | "selfie", file: File) => {
     setUploads(prev => ({ ...prev, [type]: file }));
@@ -35,11 +48,84 @@ const VerifyPage = () => {
     setPersonalInfo(prev => ({ ...prev, [name]: value }));
   };
 
+  const submitVerification = async () => {
+    if (!user) return;
+
+    try {
+      setIsSubmitting(true);
+
+      // Generate document hashes (in a real app, you'd use proper cryptographic hashing)
+      const idCardHash = `id_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
+      const selfieHash = `selfie_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
+      
+      // Upload files to Supabase Storage
+      let idCardPath = "";
+      let selfiePath = "";
+      
+      if (uploads.idCard) {
+        const idFileName = `${user.id}_id_${Date.now()}.${uploads.idCard.name.split('.').pop()}`;
+        const { data: idData, error: idError } = await supabase.storage
+          .from('identity_documents')
+          .upload(`id_cards/${idFileName}`, uploads.idCard);
+          
+        if (idError) throw new Error(`Failed to upload ID card: ${idError.message}`);
+        idCardPath = idData?.path || "";
+      }
+      
+      if (uploads.selfie) {
+        const selfieFileName = `${user.id}_selfie_${Date.now()}.${uploads.selfie.name.split('.').pop()}`;
+        const { data: selfieData, error: selfieError } = await supabase.storage
+          .from('identity_documents')
+          .upload(`selfies/${selfieFileName}`, uploads.selfie);
+          
+        if (selfieError) throw new Error(`Failed to upload selfie: ${selfieError.message}`);
+        selfiePath = selfieData?.path || "";
+      }
+
+      // Create a combined hash for the verification
+      const documentHash = `${idCardHash}_${selfieHash}`;
+      
+      // Use a mock wallet address for demo purposes
+      const walletAddress = `0x${Math.random().toString(16).substring(2, 14)}`;
+      
+      // Record verification in Supabase
+      const { error: dbError } = await supabase
+        .from('verifications')
+        .insert({
+          user_id: user.id,
+          document_hash: documentHash,
+          document_path: JSON.stringify({
+            idCard: idCardPath,
+            selfie: selfiePath,
+            personalInfo: personalInfo
+          }),
+          wallet_address: walletAddress,
+          signature: `sig_${Date.now()}`,
+          status: 'pending'
+        });
+        
+      if (dbError) throw new Error(`Database error: ${dbError.message}`);
+      
+      // Simulate blockchain verification
+      await verifyDocument(documentHash, walletAddress);
+      
+      toast.success("Verification request submitted successfully");
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 1500);
+    } catch (error) {
+      console.error("Verification error:", error);
+      toast.error(`Verification failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleNext = () => {
     // Validation for each step
     if (step === 1) {
       if (!personalInfo.fullName || !personalInfo.dateOfBirth || !personalInfo.nationality || !personalInfo.address) {
-        toast({
+        hookToast({
           title: "Incomplete Information",
           description: "Please fill in all required personal information fields",
           variant: "destructive",
@@ -48,7 +134,7 @@ const VerifyPage = () => {
       }
     } else if (step === 2) {
       if (!uploads.idCard || !uploads.selfie) {
-        toast({
+        hookToast({
           title: "Missing Documents",
           description: "Please upload both ID card and selfie",
           variant: "destructive",
@@ -60,15 +146,7 @@ const VerifyPage = () => {
     if (step < 3) {
       setStep(step + 1);
     } else {
-      // Submit verification request
-      toast({
-        title: "Verification Submitted",
-        description: "Your identity verification request has been submitted successfully",
-      });
-      // Simulate processing and redirect to dashboard
-      setTimeout(() => {
-        navigate("/dashboard");
-      }, 2000);
+      submitVerification();
     }
   };
 
@@ -77,6 +155,17 @@ const VerifyPage = () => {
       setStep(step - 1);
     }
   };
+
+  // Show loading state while checking authentication
+  if (loading) {
+    return (
+      <Layout>
+        <div className="container mx-auto px-4 py-12">
+          <p className="text-center">Loading...</p>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -266,8 +355,12 @@ const VerifyPage = () => {
               </CardContent>
               <CardFooter className="flex justify-between">
                 <Button variant="outline" onClick={handleBack}>Back</Button>
-                <Button onClick={handleNext} className="bg-blockchain-blue hover:bg-blockchain-teal">
-                  Submit Verification
+                <Button 
+                  onClick={handleNext} 
+                  className="bg-blockchain-blue hover:bg-blockchain-teal"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? "Submitting..." : "Submit Verification"}
                 </Button>
               </CardFooter>
             </Card>
