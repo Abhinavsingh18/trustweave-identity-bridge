@@ -102,3 +102,12 @@ export const verifyDocument = async (documentHash: string, userAddress: string) 
 export const checkVerification = async (transactionHash: string) => {
   return await verifyBlockchainRecord(transactionHash);
 };
+
+/**
+ * For admin use - check if a user has admin privileges
+ * Currently this just checks localStorage, but in a real app this 
+ * would check a proper role system
+ */
+export const checkAdminStatus = (): boolean => {
+  return localStorage.getItem("isAdmin") === "true";
+};

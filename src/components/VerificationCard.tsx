@@ -2,7 +2,7 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, Shield } from "lucide-react";
+import { FileText, Shield, Eye } from "lucide-react";
 import VerificationStatus from "./VerificationStatus";
 
 type VerificationCardProps = {
@@ -11,6 +11,7 @@ type VerificationCardProps = {
   status: "verified" | "pending" | "rejected";
   date: string;
   documentType: string;
+  documentHash?: string;
   onView?: () => void;
 };
 
@@ -20,6 +21,7 @@ const VerificationCard = ({
   status,
   date,
   documentType,
+  documentHash,
   onView,
 }: VerificationCardProps) => {
   return (
@@ -51,6 +53,14 @@ const VerificationCard = ({
               {status === "verified" ? "Verified on Chain" : status === "pending" ? "Pending" : "Not Verified"}
             </Badge>
           </div>
+          {documentHash && (
+            <div className="flex justify-between">
+              <span className="text-sm text-gray-500">Document Hash</span>
+              <span className="text-sm font-mono truncate max-w-[150px]" title={documentHash}>
+                {documentHash.substring(0, 10)}...
+              </span>
+            </div>
+          )}
         </div>
       </CardContent>
       <CardFooter>
@@ -59,7 +69,7 @@ const VerificationCard = ({
           variant={status === "verified" ? "default" : "outline"} 
           className={status === "verified" ? "w-full bg-blockchain-blue hover:bg-blockchain-teal" : "w-full"}
         >
-          View Details
+          <Eye className="h-4 w-4 mr-2" /> View Details
         </Button>
       </CardFooter>
     </Card>

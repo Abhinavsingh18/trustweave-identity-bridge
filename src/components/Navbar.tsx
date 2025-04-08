@@ -1,191 +1,136 @@
 
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Shield, User, LogOut } from "lucide-react";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
+import { Menu, X, Shield } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { 
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { useMobile } from "@/hooks/use-mobile";
+import { checkAdminStatus } from "@/integrations/blockchain";
+
+interface NavLinkProps {
+  href: string;
+  children: React.ReactNode;
+  className?: string;
+  onClick?: () => void;
+}
+
+const NavLink = ({ href, children, className, onClick }: NavLinkProps) => {
+  const location = useLocation();
+  const isActive = location.pathname === href;
+
+  return (
+    <Link
+      to={href}
+      className={cn(
+        "transition-colors hover:text-foreground/80",
+        isActive ? "text-foreground font-medium" : "text-foreground/60",
+        className
+      )}
+      onClick={onClick}
+    >
+      {children}
+    </Link>
+  );
+};
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const { user, signOut } = useAuth();
-  const navigate = useNavigate();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const isMobile = useMobile();
+  const { user, logout } = useAuth();
 
-  const handleSignOut = async () => {
-    await signOut();
-    navigate("/");
+  useEffect(() => {
+    // Check if user is admin
+    setIsAdmin(checkAdminStatus());
+  }, []);
+
+  const handleLogout = async () => {
+    await logout();
+    setIsOpen(false);
   };
 
   return (
-    <nav className="bg-white shadow-sm dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
+    <header className="border-b sticky top-0 z-40 bg-background">
+      <nav className="container mx-auto flex h-16 items-center px-4 sm:px-6">
+        <div className="flex w-full justify-between items-center">
           <div className="flex items-center">
-            <Link to="/" className="flex-shrink-0 flex items-center">
-              <Shield className="h-8 w-8 text-blockchain-blue" />
-              <span className="ml-2 text-xl font-bold text-blockchain-dark dark:text-white">TrustWeave</span>
-            </Link>
-          </div>
-          
-          <div className="hidden md:flex items-center space-x-1">
-            <Link to="/" className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-blockchain-blue dark:text-gray-300 dark:hover:text-white">
-              Home
-            </Link>
-            <Link to="/verify" className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-blockchain-blue dark:text-gray-300 dark:hover:text-white">
-              Verify Identity
-            </Link>
-            <Link to="/dashboard" className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-blockchain-blue dark:text-gray-300 dark:hover:text-white">
-              Dashboard
-            </Link>
-            <Link to="/about" className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-blockchain-blue dark:text-gray-300 dark:hover:text-white">
-              About
+            <Link to="/" className="flex items-center">
+              <Shield className="h-6 w-6 text-blockchain-blue mr-2" />
+              <span className="font-bold text-xl hidden sm:inline-block">BlockVerify</span>
             </Link>
             
-            {!user ? (
-              <>
-                <Button variant="outline" className="ml-4" onClick={() => navigate("/auth")}>
-                  <User className="h-4 w-4 mr-2" />
-                  Sign In
-                </Button>
-                <Button 
-                  className="ml-2 bg-blockchain-blue hover:bg-blockchain-teal text-white"
-                  onClick={() => {
-                    navigate("/auth");
-                    setTimeout(() => {
-                      // This will automatically switch to the register tab when arrived at the auth page
-                      const registerTab = document.querySelector('[value="register"]');
-                      if (registerTab) {
-                        (registerTab as HTMLElement).click();
-                      }
-                    }, 100);
-                  }}
-                >
-                  Register
-                </Button>
-              </>
-            ) : (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="ml-4">
-                    <User className="h-4 w-4 mr-2" />
-                    {user.email?.split('@')[0] || 'Account'}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => navigate("/dashboard")}>
-                    Dashboard
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleSignOut}>
-                    <LogOut className="h-4 w-4 mr-2" />
-                    Sign Out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+            {!isMobile && (
+              <div className="ml-8 hidden md:flex gap-6">
+                <NavLink href="/">Home</NavLink>
+                <NavLink href="/verify">Verify</NavLink>
+                <NavLink href="/about">About</NavLink>
+                {isAdmin && (
+                  <NavLink href="/admin" className="flex items-center">
+                    <Shield className="h-4 w-4 mr-1 text-blockchain-blue" />
+                    Admin
+                  </NavLink>
+                )}
+              </div>
             )}
           </div>
           
-          <div className="md:hidden flex items-center">
-            <button
-              onClick={() => setIsOpen(!isOpen)}
-              className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"
-            >
-              {isOpen ? (
-                <X className="block h-6 w-6" aria-hidden="true" />
-              ) : (
-                <Menu className="block h-6 w-6" aria-hidden="true" />
-              )}
-            </button>
+          <div className="hidden md:flex gap-3">
+            {user ? (
+              <>
+                <Button variant="outline" asChild>
+                  <Link to="/dashboard">Dashboard</Link>
+                </Button>
+                <Button onClick={handleLogout}>Logout</Button>
+              </>
+            ) : (
+              <Button asChild>
+                <Link to="/auth">Login</Link>
+              </Button>
+            )}
           </div>
-        </div>
-      </div>
 
-      {isOpen && (
-        <div className="md:hidden">
-          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-            <Link
-              to="/"
-              className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-blockchain-blue dark:text-gray-300 dark:hover:text-white"
-              onClick={() => setIsOpen(false)}
-            >
-              Home
-            </Link>
-            <Link
-              to="/verify"
-              className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-blockchain-blue dark:text-gray-300 dark:hover:text-white"
-              onClick={() => setIsOpen(false)}
-            >
-              Verify Identity
-            </Link>
-            <Link
-              to="/dashboard"
-              className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-blockchain-blue dark:text-gray-300 dark:hover:text-white"
-              onClick={() => setIsOpen(false)}
-            >
-              Dashboard
-            </Link>
-            <Link
-              to="/about"
-              className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-blockchain-blue dark:text-gray-300 dark:hover:text-white"
-              onClick={() => setIsOpen(false)}
-            >
-              About
-            </Link>
-            <div className="pt-4 pb-3 border-t border-gray-200 dark:border-gray-700">
-              {!user ? (
-                <>
-                  <Button variant="outline" className="w-full mb-2" onClick={() => {
-                    navigate("/auth");
-                    setIsOpen(false);
-                  }}>
-                    <User className="h-4 w-4 mr-2" />
-                    Sign In
-                  </Button>
-                  <Button 
-                    className="w-full bg-blockchain-blue hover:bg-blockchain-teal text-white"
-                    onClick={() => {
-                      navigate("/auth");
-                      setIsOpen(false);
-                      setTimeout(() => {
-                        // This will automatically switch to the register tab when arrived at the auth page
-                        const registerTab = document.querySelector('[value="register"]');
-                        if (registerTab) {
-                          (registerTab as HTMLElement).click();
-                        }
-                      }, 100);
-                    }}
-                  >
-                    Register
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <div className="px-3 py-2 text-sm font-medium text-gray-400">
-                    Signed in as: {user.email}
+          {isMobile && (
+            <Sheet open={isOpen} onOpenChange={setIsOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" className="px-0 text-base hover:bg-transparent focus-visible:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0">
+                  {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="pr-0">
+                <nav className="flex flex-col gap-4">
+                  <NavLink href="/" onClick={() => setIsOpen(false)}>Home</NavLink>
+                  <NavLink href="/verify" onClick={() => setIsOpen(false)}>Verify</NavLink>
+                  <NavLink href="/about" onClick={() => setIsOpen(false)}>About</NavLink>
+                  {isAdmin && (
+                    <NavLink href="/admin" onClick={() => setIsOpen(false)} className="flex items-center">
+                      <Shield className="h-4 w-4 mr-1 text-blockchain-blue" />
+                      Admin Panel
+                    </NavLink>
+                  )}
+                  
+                  <div className="flex flex-col gap-2 mt-4">
+                    {user ? (
+                      <>
+                        <Button variant="outline" asChild>
+                          <Link to="/dashboard" onClick={() => setIsOpen(false)}>Dashboard</Link>
+                        </Button>
+                        <Button onClick={handleLogout}>Logout</Button>
+                      </>
+                    ) : (
+                      <Button asChild>
+                        <Link to="/auth" onClick={() => setIsOpen(false)}>Login</Link>
+                      </Button>
+                    )}
                   </div>
-                  <Button 
-                    variant="outline" 
-                    className="w-full mt-2" 
-                    onClick={handleSignOut}
-                  >
-                    <LogOut className="h-4 w-4 mr-2" />
-                    Sign Out
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
+                </nav>
+              </SheetContent>
+            </Sheet>
+          )}
         </div>
-      )}
-    </nav>
+      </nav>
+    </header>
   );
 };
 
