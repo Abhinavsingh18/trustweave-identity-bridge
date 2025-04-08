@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
@@ -63,20 +64,20 @@ const VerifyPage = () => {
       let selfiePath = "";
       
       if (uploads.idCard) {
-        const idFileName = `${user.id}_id_${Date.now()}.${uploads.idCard.name.split('.').pop()}`;
+        const idFileName = `${user.id}/id_${Date.now()}.${uploads.idCard.name.split('.').pop()}`;
         const { data: idData, error: idError } = await supabase.storage
           .from('identity_documents')
-          .upload(`id_cards/${idFileName}`, uploads.idCard);
+          .upload(idFileName, uploads.idCard);
           
         if (idError) throw new Error(`Failed to upload ID card: ${idError.message}`);
         idCardPath = idData?.path || "";
       }
       
       if (uploads.selfie) {
-        const selfieFileName = `${user.id}_selfie_${Date.now()}.${uploads.selfie.name.split('.').pop()}`;
+        const selfieFileName = `${user.id}/selfie_${Date.now()}.${uploads.selfie.name.split('.').pop()}`;
         const { data: selfieData, error: selfieError } = await supabase.storage
           .from('identity_documents')
-          .upload(`selfies/${selfieFileName}`, uploads.selfie);
+          .upload(selfieFileName, uploads.selfie);
           
         if (selfieError) throw new Error(`Failed to upload selfie: ${selfieError.message}`);
         selfiePath = selfieData?.path || "";

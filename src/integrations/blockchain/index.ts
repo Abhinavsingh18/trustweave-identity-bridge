@@ -5,6 +5,7 @@
  */
 
 import { submitVerificationToBlockchain, verifyBlockchainRecord } from "@/utils/blockchainUtils";
+import { supabase } from "@/integrations/supabase/client";
 
 /**
  * Checks the verification status of a user by email
@@ -21,9 +22,6 @@ export const getVerificationStatus = async (email: string): Promise<"verified" |
   if (!email) return "rejected";
   
   try {
-    // Try to get verification status from Supabase
-    const { supabase } = await import("@/integrations/supabase/client");
-    
     // Get the user ID from the email
     const { data: authData } = await supabase.auth.getUser();
     if (!authData?.user?.id) {
