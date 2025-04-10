@@ -61,6 +61,7 @@ const VerifyPage = () => {
 
     try {
       setIsSubmitting(true);
+      console.log("Starting verification submission process");
 
       // Generate document hashes (in a real app, you'd use proper cryptographic hashing)
       const idCardHash = `id_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
@@ -97,6 +98,7 @@ const VerifyPage = () => {
       const walletAddress = `0x${Math.random().toString(16).substring(2, 14)}`;
       
       // Record verification in Supabase, including user email in the document_path
+      console.log("Inserting verification record to Supabase");
       const { error: dbError } = await supabase
         .from('verifications')
         .insert({
@@ -116,6 +118,7 @@ const VerifyPage = () => {
         });
         
       if (dbError) throw new Error(`Database error: ${dbError.message}`);
+      console.log("Verification record inserted successfully");
       
       // Simulate blockchain verification
       await verifyDocument(documentHash, walletAddress);

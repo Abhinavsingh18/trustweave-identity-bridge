@@ -39,6 +39,13 @@ type VerificationRecord = {
   wallet_address: string;
   signature: string;
   user_email?: string;
+  personalInfo?: {
+    fullName: string;
+    dateOfBirth: string;
+    nationality: string;
+    address: string;
+    email: string;
+  };
 };
 
 const AdminLogin = ({ onLogin }: { onLogin: () => void }) => {
@@ -152,11 +159,12 @@ const AdminDashboard = () => {
     });
   };
 
-  // Load all verification records
+  // Fetch all verification records when component mounts
   useEffect(() => {
     const fetchVerifications = async () => {
       setLoading(true);
       try {
+        console.log("Fetching verification records...");
         // Get all verification records, ordered by newest first
         const { data, error } = await supabase
           .from('verifications')
@@ -164,30 +172,40 @@ const AdminDashboard = () => {
           .order('created_at', { ascending: false });
 
         if (error) {
+          console.error("Error fetching verifications:", error);
           throw error;
         }
+
+        console.log("Fetched records:", data);
 
         // Process records to extract user emails from document_path
         if (data) {
           const recordsWithUserDetails = data.map(record => {
             // Try to extract user email from document_path
             let userEmail = 'Unknown user';
+            let personalInfo = null;
+            
             try {
               const docInfo = JSON.parse(record.document_path);
               if (docInfo.personalInfo && docInfo.personalInfo.email) {
                 userEmail = docInfo.personalInfo.email;
+                personalInfo = docInfo.personalInfo;
               }
             } catch (e) {
-              console.error('Error parsing document_path:', e);
+              console.error('Error parsing document_path:', e, record.document_path);
             }
             
             return {
               ...record,
-              user_email: userEmail
+              user_email: userEmail,
+              personalInfo
             };
           });
           
+          console.log("Processed records:", recordsWithUserDetails);
           setVerifications(recordsWithUserDetails as VerificationRecord[]);
+        } else {
+          console.log("No verification records found");
         }
       } catch (error) {
         console.error('Error fetching verification records:', error);
@@ -299,7 +317,7 @@ const AdminDashboard = () => {
                     <TableRow key={record.id}>
                       <TableCell className="font-medium">{record.id.substring(0, 8)}</TableCell>
                       <TableCell>{record.user_email || record.user_id.substring(0, 8)}</TableCell>
-                      <TableCell>{formatDate(record.created_at)}</TableCell>
+                      <TableCell>{formatDate(record.created_at || new Date().toISOString())}</TableCell>
                       <TableCell>
                         {record.status === "verified" && (
                           <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
@@ -343,6 +361,10 @@ const AdminDashboard = () => {
                                     <p className="text-sm font-mono mt-1">{selectedRecord?.user_email}</p>
                                   </div>
                                   <div>
+                                    <Label>Full Name</Label>
+                                    <p className="text-sm font-mono mt-1">{selectedRecord?.personalInfo?.fullName || "Not provided"}</p>
+                                  </div>
+                                  <div>
                                     <Label>Document Hash</Label>
                                     <p className="text-sm font-mono mt-1 break-all">{selectedRecord?.document_hash}</p>
                                   </div>
@@ -353,9 +375,6 @@ const AdminDashboard = () => {
                                   <div>
                                     <Label>ID Document</Label>
                                     <div className="mt-2 p-4 border rounded-md bg-gray-50">
-                                      <p className="text-sm text-gray-500">
-                                        Document path: {selectedRecord?.document_path}
-                                      </p>
                                       {/* In a real app, you would render the actual document image here */}
                                       <div className="mt-2 h-40 bg-gray-200 rounded flex items-center justify-center">
                                         Document preview placeholder
