@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Check, Eye, RefreshCw, ShieldCheck, ShieldX, UserCog } from "lucide-react";
+import { toast } from "sonner";
 
 type VerificationRecord = {
   id: string;
@@ -165,7 +166,8 @@ const AdminDashboard = () => {
     const fetchVerifications = async () => {
       setLoading(true);
       try {
-        console.log("Fetching verification records...");
+        console.log("Fetching verification records from Supabase...");
+        
         // Get all verification records, ordered by newest first
         const { data, error } = await supabase
           .from('verifications')
@@ -178,7 +180,7 @@ const AdminDashboard = () => {
         }
 
         console.log("Fetched records:", data);
-
+        
         // Process records to extract user emails from document_path
         if (data && data.length > 0) {
           const recordsWithUserDetails = data.map(record => {
@@ -189,17 +191,16 @@ const AdminDashboard = () => {
             try {
               if (record.document_path) {
                 const docInfo = JSON.parse(record.document_path);
-                if (docInfo && docInfo.personalInfo && docInfo.personalInfo.email) {
-                  userEmail = docInfo.personalInfo.email;
+                console.log("Parsed document_path:", docInfo);
+                
+                if (docInfo && docInfo.personalInfo) {
+                  userEmail = docInfo.personalInfo.email || 'Email not provided';
                   personalInfo = docInfo.personalInfo;
+                  console.log("Extracted user email:", userEmail);
                 }
               }
             } catch (e) {
               console.error('Error parsing document_path:', e, record.document_path);
-              // If parsing fails, try to check if there's a raw email field
-              if (record.document_path && typeof record.document_path === 'string' && record.document_path.includes('@')) {
-                userEmail = record.document_path;
-              }
             }
             
             return {
@@ -209,7 +210,7 @@ const AdminDashboard = () => {
             };
           });
           
-          console.log("Processed records:", recordsWithUserDetails);
+          console.log("Processed verification records:", recordsWithUserDetails);
           setVerifications(recordsWithUserDetails as VerificationRecord[]);
         } else {
           console.log("No verification records found");
@@ -220,7 +221,7 @@ const AdminDashboard = () => {
         toast({
           variant: "destructive",
           title: "Error loading records",
-          description: "Could not load verification records"
+          description: "Could not load verification records. Please try again."
         });
       } finally {
         setLoading(false);
@@ -239,13 +240,20 @@ const AdminDashboard = () => {
   // Update verification status
   const updateStatus = async (id: string, status: "verified" | "rejected") => {
     try {
+      console.log(`Updating verification status for ID ${id} to ${status}`);
+      
       const { error } = await supabase
         .from('verifications')
         .update({ status })
         .eq('id', id);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error updating verification status:", error);
+        throw error;
+      }
 
+      console.log("Verification status updated successfully");
+      
       // Update the local state
       setVerifications(
         verifications.map(record => 
@@ -262,13 +270,14 @@ const AdminDashboard = () => {
       toast({
         variant: "destructive",
         title: "Update failed",
-        description: "Could not update the verification status"
+        description: "Could not update the verification status. Please try again."
       });
     }
   };
 
   // View document files
   const viewDocuments = (record: VerificationRecord) => {
+    console.log("Viewing document details:", record);
     setSelectedRecord(record);
   };
 

@@ -77,8 +77,12 @@ const VerifyPage = () => {
           .from('identity_documents')
           .upload(idFileName, uploads.idCard);
           
-        if (idError) throw new Error(`Failed to upload ID card: ${idError.message}`);
+        if (idError) {
+          console.error("Failed to upload ID card:", idError);
+          throw new Error(`Failed to upload ID card: ${idError.message}`);
+        }
         idCardPath = idData?.path || "";
+        console.log("ID card uploaded successfully:", idCardPath);
       }
       
       if (uploads.selfie) {
@@ -87,8 +91,12 @@ const VerifyPage = () => {
           .from('identity_documents')
           .upload(selfieFileName, uploads.selfie);
           
-        if (selfieError) throw new Error(`Failed to upload selfie: ${selfieError.message}`);
+        if (selfieError) {
+          console.error("Failed to upload selfie:", selfieError);
+          throw new Error(`Failed to upload selfie: ${selfieError.message}`);
+        }
         selfiePath = selfieData?.path || "";
+        console.log("Selfie uploaded successfully:", selfiePath);
       }
 
       // Create a combined hash for the verification
