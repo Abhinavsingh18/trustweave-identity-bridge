@@ -6,7 +6,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { Menu, X, Shield } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { checkAdminStatus } from "@/integrations/blockchain";
 
 interface NavLinkProps {
@@ -38,8 +38,8 @@ const NavLink = ({ href, children, className, onClick }: NavLinkProps) => {
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const isMobile = useMobile();
-  const { user, logout } = useAuth();
+  const isMobile = useIsMobile();
+  const { user, signOut } = useAuth();
 
   useEffect(() => {
     // Check if user is admin
@@ -47,7 +47,7 @@ const Navbar = () => {
   }, []);
 
   const handleLogout = async () => {
-    await logout();
+    await signOut();
     setIsOpen(false);
   };
 
