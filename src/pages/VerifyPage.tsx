@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,8 @@ const VerifyPage = () => {
     fullName: "",
     dateOfBirth: "",
     nationality: "",
-    address: ""
+    address: "",
+    email: "" // Added email field to store user email
   });
   const { toast: hookToast } = useToast();
   const navigate = useNavigate();
@@ -36,6 +38,12 @@ const VerifyPage = () => {
     if (!loading && !user) {
       toast.error("Please sign in to verify your identity");
       navigate("/auth");
+    } else if (user) {
+      // Pre-fill email from authenticated user
+      setPersonalInfo(prev => ({
+        ...prev,
+        email: user.email || ""
+      }));
     }
   }, [user, loading, navigate]);
 
@@ -88,18 +96,7 @@ const VerifyPage = () => {
       // Use a mock wallet address for demo purposes
       const walletAddress = `0x${Math.random().toString(16).substring(2, 14)}`;
       
-      // Save user email to users table for admin to see
-      const { error: userError } = await supabase
-        .from('users')
-        .upsert({
-          id: user.id,
-          email: user.email,
-          created_at: new Date().toISOString()
-        });
-        
-      if (userError) console.error("Error saving user data:", userError);
-      
-      // Record verification in Supabase
+      // Record verification in Supabase, including user email in the document_path
       const { error: dbError } = await supabase
         .from('verifications')
         .insert({
@@ -108,7 +105,10 @@ const VerifyPage = () => {
           document_path: JSON.stringify({
             idCard: idCardPath,
             selfie: selfiePath,
-            personalInfo: personalInfo
+            personalInfo: {
+              ...personalInfo,
+              email: user.email  // Ensure email is included
+            }
           }),
           wallet_address: walletAddress,
           signature: `sig_${Date.now()}`,

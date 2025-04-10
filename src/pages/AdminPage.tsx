@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
@@ -168,23 +167,25 @@ const AdminDashboard = () => {
           throw error;
         }
 
-        // Get user details for each verification
+        // Process records to extract user emails from document_path
         if (data) {
-          const recordsWithUserDetails = await Promise.all(
-            data.map(async (record) => {
-              // Get user email
-              const { data: userData } = await supabase
-                .from('users')
-                .select('email')
-                .eq('id', record.user_id)
-                .single();
-
-              return {
-                ...record,
-                user_email: userData?.email || 'Unknown user'
-              };
-            })
-          );
+          const recordsWithUserDetails = data.map(record => {
+            // Try to extract user email from document_path
+            let userEmail = 'Unknown user';
+            try {
+              const docInfo = JSON.parse(record.document_path);
+              if (docInfo.personalInfo && docInfo.personalInfo.email) {
+                userEmail = docInfo.personalInfo.email;
+              }
+            } catch (e) {
+              console.error('Error parsing document_path:', e);
+            }
+            
+            return {
+              ...record,
+              user_email: userEmail
+            };
+          });
           
           setVerifications(recordsWithUserDetails as VerificationRecord[]);
         }
