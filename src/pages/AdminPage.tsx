@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
@@ -179,20 +180,26 @@ const AdminDashboard = () => {
         console.log("Fetched records:", data);
 
         // Process records to extract user emails from document_path
-        if (data) {
+        if (data && data.length > 0) {
           const recordsWithUserDetails = data.map(record => {
             // Try to extract user email from document_path
             let userEmail = 'Unknown user';
             let personalInfo = null;
             
             try {
-              const docInfo = JSON.parse(record.document_path);
-              if (docInfo.personalInfo && docInfo.personalInfo.email) {
-                userEmail = docInfo.personalInfo.email;
-                personalInfo = docInfo.personalInfo;
+              if (record.document_path) {
+                const docInfo = JSON.parse(record.document_path);
+                if (docInfo && docInfo.personalInfo && docInfo.personalInfo.email) {
+                  userEmail = docInfo.personalInfo.email;
+                  personalInfo = docInfo.personalInfo;
+                }
               }
             } catch (e) {
               console.error('Error parsing document_path:', e, record.document_path);
+              // If parsing fails, try to check if there's a raw email field
+              if (record.document_path && typeof record.document_path === 'string' && record.document_path.includes('@')) {
+                userEmail = record.document_path;
+              }
             }
             
             return {
@@ -206,6 +213,7 @@ const AdminDashboard = () => {
           setVerifications(recordsWithUserDetails as VerificationRecord[]);
         } else {
           console.log("No verification records found");
+          setVerifications([]);
         }
       } catch (error) {
         console.error('Error fetching verification records:', error);
@@ -220,6 +228,12 @@ const AdminDashboard = () => {
     };
 
     fetchVerifications();
+    
+    // Set up a polling interval to refresh data
+    const intervalId = setInterval(fetchVerifications, 30000); // Refresh every 30 seconds
+    
+    // Cleanup interval on component unmount
+    return () => clearInterval(intervalId);
   }, [toast]);
 
   // Update verification status
@@ -264,6 +278,19 @@ const AdminDashboard = () => {
     navigate("/admin");
   };
 
+  // Manual refresh function
+  const handleRefresh = () => {
+    toast({
+      title: "Refreshing data",
+      description: "Fetching the latest verification records"
+    });
+    setLoading(true);
+    // The useEffect will re-run and fetch the latest data
+    setTimeout(() => {
+      window.location.reload();
+    }, 500);
+  };
+
   return (
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
@@ -276,9 +303,15 @@ const AdminDashboard = () => {
             Manage identity verification requests
           </p>
         </div>
-        <Button variant="outline" onClick={handleLogout}>
-          Logout
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleRefresh} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Button variant="outline" onClick={handleLogout}>
+            Logout
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -360,10 +393,34 @@ const AdminDashboard = () => {
                                     <Label>Email</Label>
                                     <p className="text-sm font-mono mt-1">{selectedRecord?.user_email}</p>
                                   </div>
-                                  <div>
-                                    <Label>Full Name</Label>
-                                    <p className="text-sm font-mono mt-1">{selectedRecord?.personalInfo?.fullName || "Not provided"}</p>
-                                  </div>
+                                  {selectedRecord?.personalInfo && (
+                                    <>
+                                      <div>
+                                        <Label>Full Name</Label>
+                                        <p className="text-sm font-medium mt-1">
+                                          {selectedRecord.personalInfo.fullName || "Not provided"}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <Label>Date of Birth</Label>
+                                        <p className="text-sm font-medium mt-1">
+                                          {selectedRecord.personalInfo.dateOfBirth || "Not provided"}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <Label>Nationality</Label>
+                                        <p className="text-sm font-medium mt-1">
+                                          {selectedRecord.personalInfo.nationality || "Not provided"}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <Label>Address</Label>
+                                        <p className="text-sm font-medium mt-1">
+                                          {selectedRecord.personalInfo.address || "Not provided"}
+                                        </p>
+                                      </div>
+                                    </>
+                                  )}
                                   <div>
                                     <Label>Document Hash</Label>
                                     <p className="text-sm font-mono mt-1 break-all">{selectedRecord?.document_hash}</p>

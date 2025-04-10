@@ -97,28 +97,41 @@ const VerifyPage = () => {
       // Use a mock wallet address for demo purposes
       const walletAddress = `0x${Math.random().toString(16).substring(2, 14)}`;
       
-      // Record verification in Supabase, including user email in the document_path
-      console.log("Inserting verification record to Supabase");
-      const { error: dbError } = await supabase
+      // Prepare the data that will be stored in document_path as JSON
+      const docPathData = {
+        idCard: idCardPath,
+        selfie: selfiePath,
+        personalInfo: {
+          ...personalInfo,
+          email: user.email || personalInfo.email  // Ensure email is included
+        }
+      };
+      
+      console.log("Inserting verification record to Supabase with data:", {
+        user_id: user.id,
+        documentHash,
+        docPathData,
+        walletAddress
+      });
+      
+      // Record verification in Supabase
+      const { data: insertData, error: dbError } = await supabase
         .from('verifications')
         .insert({
           user_id: user.id,
           document_hash: documentHash,
-          document_path: JSON.stringify({
-            idCard: idCardPath,
-            selfie: selfiePath,
-            personalInfo: {
-              ...personalInfo,
-              email: user.email  // Ensure email is included
-            }
-          }),
+          document_path: JSON.stringify(docPathData),
           wallet_address: walletAddress,
           signature: `sig_${Date.now()}`,
           status: 'pending'
         });
         
-      if (dbError) throw new Error(`Database error: ${dbError.message}`);
-      console.log("Verification record inserted successfully");
+      if (dbError) {
+        console.error("Database insertion error:", dbError);
+        throw new Error(`Database error: ${dbError.message}`);
+      }
+      
+      console.log("Verification record inserted successfully:", insertData);
       
       // Simulate blockchain verification
       await verifyDocument(documentHash, walletAddress);
