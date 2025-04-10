@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
@@ -89,6 +88,17 @@ const VerifyPage = () => {
       // Use a mock wallet address for demo purposes
       const walletAddress = `0x${Math.random().toString(16).substring(2, 14)}`;
       
+      // Save user email to users table for admin to see
+      const { error: userError } = await supabase
+        .from('users')
+        .upsert({
+          id: user.id,
+          email: user.email,
+          created_at: new Date().toISOString()
+        });
+        
+      if (userError) console.error("Error saving user data:", userError);
+      
       // Record verification in Supabase
       const { error: dbError } = await supabase
         .from('verifications')
@@ -111,6 +121,7 @@ const VerifyPage = () => {
       await verifyDocument(documentHash, walletAddress);
       
       toast.success("Verification request submitted successfully");
+      toast.success("Your request has been sent to admin for verification");
       setTimeout(() => {
         navigate("/dashboard");
       }, 1500);

@@ -172,14 +172,16 @@ const AdminDashboard = () => {
         if (data) {
           const recordsWithUserDetails = await Promise.all(
             data.map(async (record) => {
-              // Get user email from auth.users
-              const { data: userData, error: userError } = await supabase.auth.admin.getUserById(
-                record.user_id
-              );
+              // Get user email
+              const { data: userData } = await supabase
+                .from('users')
+                .select('email')
+                .eq('id', record.user_id)
+                .single();
 
               return {
                 ...record,
-                user_email: userData?.user?.email || 'Unknown user'
+                user_email: userData?.email || 'Unknown user'
               };
             })
           );
@@ -334,6 +336,10 @@ const AdminDashboard = () => {
                                   <div>
                                     <Label>User ID</Label>
                                     <p className="text-sm font-mono mt-1">{selectedRecord?.user_id}</p>
+                                  </div>
+                                  <div>
+                                    <Label>Email</Label>
+                                    <p className="text-sm font-mono mt-1">{selectedRecord?.user_email}</p>
                                   </div>
                                   <div>
                                     <Label>Document Hash</Label>
