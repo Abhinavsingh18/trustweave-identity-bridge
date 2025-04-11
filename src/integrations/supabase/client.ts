@@ -15,8 +15,8 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     autoRefreshToken: true,
   },
   global: {
-    fetch: (...args) => {
-      return fetch(...args).then(res => {
+    fetch: (url, options) => {
+      return fetch(url, options).then(res => {
         console.log(`Supabase API Response: ${res.status} for ${res.url}`);
         return res;
       });
