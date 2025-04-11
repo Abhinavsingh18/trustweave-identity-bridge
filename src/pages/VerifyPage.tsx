@@ -62,6 +62,8 @@ const VerifyPage = () => {
     try {
       setIsSubmitting(true);
       console.log("Starting verification submission process");
+      console.log("User details:", user);
+      console.log("Personal info being submitted:", personalInfo);
 
       // Generate document hashes (in a real app, you'd use proper cryptographic hashing)
       const idCardHash = `id_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
@@ -73,6 +75,8 @@ const VerifyPage = () => {
       
       if (uploads.idCard) {
         const idFileName = `${user.id}/id_${Date.now()}.${uploads.idCard.name.split('.').pop()}`;
+        console.log("Uploading ID card with filename:", idFileName);
+        
         const { data: idData, error: idError } = await supabase.storage
           .from('identity_documents')
           .upload(idFileName, uploads.idCard);
@@ -87,6 +91,8 @@ const VerifyPage = () => {
       
       if (uploads.selfie) {
         const selfieFileName = `${user.id}/selfie_${Date.now()}.${uploads.selfie.name.split('.').pop()}`;
+        console.log("Uploading selfie with filename:", selfieFileName);
+        
         const { data: selfieData, error: selfieError } = await supabase.storage
           .from('identity_documents')
           .upload(selfieFileName, uploads.selfie);
@@ -105,13 +111,25 @@ const VerifyPage = () => {
       // Use a mock wallet address for demo purposes
       const walletAddress = `0x${Math.random().toString(16).substring(2, 14)}`;
       
+      // Make sure we have the correct email
+      const userEmail = user.email || personalInfo.email || '';
+      console.log("Using email for verification:", userEmail);
+      
+      // Update personal info with email if not present
+      if (!personalInfo.email && userEmail) {
+        setPersonalInfo(prev => ({
+          ...prev,
+          email: userEmail
+        }));
+      }
+      
       // Prepare the data that will be stored in document_path as JSON
       const docPathData = {
         idCard: idCardPath,
         selfie: selfiePath,
         personalInfo: {
           ...personalInfo,
-          email: user.email || personalInfo.email  // Ensure email is included
+          email: userEmail
         }
       };
       

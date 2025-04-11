@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
@@ -190,6 +189,10 @@ const AdminDashboard = () => {
             
             try {
               if (record.document_path) {
+                // Log the raw document_path for debugging
+                console.log("Raw document_path:", record.document_path);
+                
+                // Try to parse as JSON
                 const docInfo = JSON.parse(record.document_path);
                 console.log("Parsed document_path:", docInfo);
                 
@@ -197,6 +200,12 @@ const AdminDashboard = () => {
                   userEmail = docInfo.personalInfo.email || 'Email not provided';
                   personalInfo = docInfo.personalInfo;
                   console.log("Extracted user email:", userEmail);
+                }
+                
+                // If not found in personalInfo, try direct access
+                if (!userEmail && docInfo.email) {
+                  userEmail = docInfo.email;
+                  console.log("Found email directly in document_path:", userEmail);
                 }
               }
             } catch (e) {
@@ -293,11 +302,66 @@ const AdminDashboard = () => {
       title: "Refreshing data",
       description: "Fetching the latest verification records"
     });
+    console.log("Manually refreshing verification data...");
     setLoading(true);
-    // The useEffect will re-run and fetch the latest data
-    setTimeout(() => {
-      window.location.reload();
-    }, 500);
+    
+    // Fetch fresh data from Supabase
+    supabase
+      .from('verifications')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Error refreshing verification data:", error);
+          toast({
+            variant: "destructive",
+            title: "Refresh failed",
+            description: "Could not refresh verification data. Please try again."
+          });
+          setLoading(false);
+          return;
+        }
+        
+        console.log("Refreshed data from Supabase:", data);
+        
+        // Process records similarly to the useEffect
+        if (data && data.length > 0) {
+          const recordsWithUserDetails = data.map(record => {
+            let userEmail = 'Unknown user';
+            let personalInfo = null;
+            
+            try {
+              if (record.document_path) {
+                console.log("Raw document_path in refresh:", record.document_path);
+                const docInfo = JSON.parse(record.document_path);
+                
+                if (docInfo && docInfo.personalInfo) {
+                  userEmail = docInfo.personalInfo.email || 'Email not provided';
+                  personalInfo = docInfo.personalInfo;
+                }
+              }
+            } catch (e) {
+              console.error('Error parsing document_path during refresh:', e);
+            }
+            
+            return {
+              ...record,
+              user_email: userEmail,
+              personalInfo
+            };
+          });
+          
+          setVerifications(recordsWithUserDetails as VerificationRecord[]);
+        } else {
+          setVerifications([]);
+        }
+        
+        setLoading(false);
+        toast({
+          title: "Data refreshed",
+          description: "Verification records have been updated"
+        });
+      });
   };
 
   return (
