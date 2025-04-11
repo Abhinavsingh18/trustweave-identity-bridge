@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -84,9 +85,14 @@ const Navbar = () => {
                 <Button onClick={handleLogout}>Logout</Button>
               </>
             ) : (
-              <Button asChild>
-                <Link to="/auth">Login</Link>
-              </Button>
+              <>
+                <Button asChild>
+                  <Link to="/auth">Login</Link>
+                </Button>
+                <Button variant="outline" asChild>
+                  <Link to="/admin">Admin Login</Link>
+                </Button>
+              </>
             )}
           </div>
 
@@ -118,9 +124,14 @@ const Navbar = () => {
                         <Button onClick={handleLogout}>Logout</Button>
                       </>
                     ) : (
-                      <Button asChild>
-                        <Link to="/auth" onClick={() => setIsOpen(false)}>Login</Link>
-                      </Button>
+                      <>
+                        <Button asChild>
+                          <Link to="/auth" onClick={() => setIsOpen(false)}>Login</Link>
+                        </Button>
+                        <Button variant="outline" asChild>
+                          <Link to="/admin" onClick={() => setIsOpen(false)}>Admin Login</Link>
+                        </Button>
+                      </>
                     )}
                   </div>
                 </nav>
