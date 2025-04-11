@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
@@ -6,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, verifySupabaseConnection } from "@/integrations/supabase/client";
 import {
   Table,
   TableBody,
@@ -27,7 +28,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
-import { Check, Eye, RefreshCw, ShieldCheck, ShieldX, UserCog } from "lucide-react";
+import { Check, Eye, RefreshCw, ShieldCheck, ShieldX, UserCog, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
 type VerificationRecord = {
@@ -145,6 +146,7 @@ const AdminDashboard = () => {
   const [verifications, setVerifications] = useState<VerificationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRecord, setSelectedRecord] = useState<VerificationRecord | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -164,8 +166,12 @@ const AdminDashboard = () => {
   useEffect(() => {
     const fetchVerifications = async () => {
       setLoading(true);
+      setError(null);
       try {
         console.log("Fetching verification records from Supabase...");
+        
+        // Check connection first
+        await verifySupabaseConnection();
         
         // Get all verification records, ordered by newest first
         const { data, error } = await supabase
@@ -175,6 +181,7 @@ const AdminDashboard = () => {
 
         if (error) {
           console.error("Error fetching verifications:", error);
+          setError(`Failed to fetch records: ${error.message}`);
           throw error;
         }
 
@@ -190,26 +197,44 @@ const AdminDashboard = () => {
             try {
               if (record.document_path) {
                 // Log the raw document_path for debugging
-                console.log("Raw document_path:", record.document_path);
+                console.log(`Raw document_path for record ${record.id}:`, record.document_path);
                 
                 // Try to parse as JSON
-                const docInfo = JSON.parse(record.document_path);
-                console.log("Parsed document_path:", docInfo);
+                let docInfo;
                 
-                if (docInfo && docInfo.personalInfo) {
-                  userEmail = docInfo.personalInfo.email || 'Email not provided';
-                  personalInfo = docInfo.personalInfo;
-                  console.log("Extracted user email:", userEmail);
+                if (typeof record.document_path === 'string') {
+                  try {
+                    docInfo = JSON.parse(record.document_path);
+                  } catch (e) {
+                    console.log(`Not valid JSON for record ${record.id}:`, record.document_path);
+                    // If it's not valid JSON, try to use it as is
+                    if (record.document_path.includes('@')) {
+                      userEmail = record.document_path;
+                    }
+                  }
+                } else {
+                  // If it's already an object, use it directly
+                  docInfo = record.document_path;
                 }
                 
-                // If not found in personalInfo, try direct access
-                if (!userEmail && docInfo.email) {
-                  userEmail = docInfo.email;
-                  console.log("Found email directly in document_path:", userEmail);
+                if (docInfo) {
+                  console.log(`Parsed document_path for record ${record.id}:`, docInfo);
+                  
+                  if (docInfo.personalInfo) {
+                    userEmail = docInfo.personalInfo.email || 'Email not provided';
+                    personalInfo = docInfo.personalInfo;
+                    console.log(`Extracted user email for record ${record.id}:`, userEmail);
+                  }
+                  
+                  // If not found in personalInfo, try direct access
+                  if (!userEmail && docInfo.email) {
+                    userEmail = docInfo.email;
+                    console.log(`Found email directly in document_path for record ${record.id}:`, userEmail);
+                  }
                 }
               }
             } catch (e) {
-              console.error('Error parsing document_path:', e, record.document_path);
+              console.error(`Error parsing document_path for record ${record.id}:`, e, record.document_path);
             }
             
             return {
@@ -227,6 +252,8 @@ const AdminDashboard = () => {
         }
       } catch (error) {
         console.error('Error fetching verification records:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        setError(`Could not load verification records: ${errorMessage}`);
         toast({
           variant: "destructive",
           title: "Error loading records",
@@ -304,6 +331,10 @@ const AdminDashboard = () => {
     });
     console.log("Manually refreshing verification data...");
     setLoading(true);
+    setError(null);
+    
+    // Verify connection first
+    verifySupabaseConnection();
     
     // Fetch fresh data from Supabase
     supabase
@@ -313,6 +344,7 @@ const AdminDashboard = () => {
       .then(({ data, error }) => {
         if (error) {
           console.error("Error refreshing verification data:", error);
+          setError(`Failed to refresh data: ${error.message}`);
           toast({
             variant: "destructive",
             title: "Refresh failed",
@@ -332,16 +364,31 @@ const AdminDashboard = () => {
             
             try {
               if (record.document_path) {
-                console.log("Raw document_path in refresh:", record.document_path);
-                const docInfo = JSON.parse(record.document_path);
+                console.log(`Raw document_path in refresh for record ${record.id}:`, record.document_path);
+                let docInfo;
+                
+                if (typeof record.document_path === 'string') {
+                  try {
+                    docInfo = JSON.parse(record.document_path);
+                  } catch (e) {
+                    // Not valid JSON, try to use as is if it looks like an email
+                    if (record.document_path.includes('@')) {
+                      userEmail = record.document_path;
+                    }
+                  }
+                } else {
+                  docInfo = record.document_path;
+                }
                 
                 if (docInfo && docInfo.personalInfo) {
                   userEmail = docInfo.personalInfo.email || 'Email not provided';
                   personalInfo = docInfo.personalInfo;
+                } else if (docInfo && docInfo.email) {
+                  userEmail = docInfo.email;
                 }
               }
             } catch (e) {
-              console.error('Error parsing document_path during refresh:', e);
+              console.error(`Error parsing document_path during refresh for record ${record.id}:`, e);
             }
             
             return {
@@ -395,6 +442,13 @@ const AdminDashboard = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-4 flex items-center">
+              <AlertCircle className="h-5 w-5 text-red-600 mr-2" />
+              <p className="text-red-800">{error}</p>
+            </div>
+          )}
+          
           {loading ? (
             <div className="flex justify-center py-8">
               <RefreshCw className="h-8 w-8 animate-spin text-blockchain-blue" />
@@ -503,13 +557,14 @@ const AdminDashboard = () => {
                                     <p className="text-sm font-mono mt-1 break-all">{selectedRecord?.wallet_address}</p>
                                   </div>
                                   <div>
-                                    <Label>ID Document</Label>
-                                    <div className="mt-2 p-4 border rounded-md bg-gray-50">
-                                      {/* In a real app, you would render the actual document image here */}
-                                      <div className="mt-2 h-40 bg-gray-200 rounded flex items-center justify-center">
-                                        Document preview placeholder
-                                      </div>
-                                    </div>
+                                    <Label>Document Data</Label>
+                                    <pre className="text-xs font-mono mt-1 bg-gray-50 p-2 rounded-md overflow-auto max-h-40">
+                                      {selectedRecord?.document_path ? 
+                                        (typeof selectedRecord.document_path === 'string' ? 
+                                          selectedRecord.document_path : 
+                                          JSON.stringify(selectedRecord.document_path, null, 2)) 
+                                        : "No data"}
+                                    </pre>
                                   </div>
                                 </div>
                               </div>

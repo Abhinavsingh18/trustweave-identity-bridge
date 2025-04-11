@@ -14,6 +14,14 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     persistSession: true,
     autoRefreshToken: true,
   },
+  global: {
+    fetch: (...args) => {
+      return fetch(...args).then(res => {
+        console.log(`Supabase API Response: ${res.status} for ${res.url}`);
+        return res;
+      });
+    },
+  },
 });
 
 console.log("Supabase client initialized with URL:", SUPABASE_URL);
@@ -23,12 +31,59 @@ supabase.channel('custom').on('system', { event: 'reconnect' }, () => {
   console.log('Reconnecting to Supabase...');
 }).subscribe();
 
-// Verify connectivity
-supabase.from('verifications').select('count', { count: 'exact', head: true })
-  .then(({ count, error }) => {
-    if (error) {
-      console.error('Failed to connect to Supabase:', error.message);
-    } else {
-      console.log(`Successfully connected to Supabase. Found ${count} verification records.`);
+// Verify connectivity and print number of verification records
+async function checkVerificationRecords() {
+  try {
+    console.log("Checking verification records in Supabase...");
+    
+    // First check total count
+    const { count, error: countError } = await supabase
+      .from('verifications')
+      .select('*', { count: 'exact', head: true });
+      
+    if (countError) {
+      console.error('Failed to count verification records:', countError.message);
+      return;
     }
-  });
+    
+    console.log(`Found ${count} total verification records in database.`);
+    
+    // Then check pending count specifically
+    const { count: pendingCount, error: pendingError } = await supabase
+      .from('verifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending');
+      
+    if (pendingError) {
+      console.error('Failed to count pending verification records:', pendingError.message);
+      return;
+    }
+    
+    console.log(`Found ${pendingCount} pending verification records in database.`);
+    
+    // Get a sample record to debug data structure
+    const { data: sampleData, error: sampleError } = await supabase
+      .from('verifications')
+      .select('*')
+      .limit(1);
+      
+    if (sampleError) {
+      console.error('Failed to fetch sample verification record:', sampleError.message);
+      return;
+    }
+    
+    if (sampleData && sampleData.length > 0) {
+      console.log('Sample verification record structure:', sampleData[0]);
+    } else {
+      console.log('No verification records found to sample.');
+    }
+  } catch (error) {
+    console.error('Error checking verification records:', error);
+  }
+}
+
+// Run the check immediately
+checkVerificationRecords();
+
+// Export a function to manually verify connection
+export const verifySupabaseConnection = checkVerificationRecords;
