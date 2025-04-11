@@ -30,6 +30,7 @@ import Layout from "@/components/Layout";
 import { useAuth } from "@/contexts/AuthContext";
 import { getVerificationStatus } from "@/integrations/blockchain";
 import { supabase } from "@/integrations/supabase/client";
+import VerificationStatus from "@/components/VerificationStatus";
 
 // Define the verification record type
 interface VerificationRecord {
@@ -69,7 +70,9 @@ const DashboardPage = () => {
       // If we have a record in the database, use that status
       if (verifiedRecord && verifiedRecord.length > 0) {
         console.log("Found verification status in database:", verifiedRecord[0].status);
-        setVerificationStatus(verifiedRecord[0].status);
+        // Fix: Cast the string status to the correct type
+        const status = verifiedRecord[0].status as "verified" | "pending" | "rejected";
+        setVerificationStatus(status);
       } else {
         // Otherwise fall back to blockchain service
         console.log("No verification record in database, checking blockchain...");
@@ -126,7 +129,21 @@ const DashboardPage = () => {
     
     toast.info("Refreshing verification status...");
     await fetchVerificationStatus();
-    toast.success("Verification status updated");
+    
+    // Also refresh the verification records
+    const { data, error } = await supabase
+      .from('verifications')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error('Error fetching verification records:', error);
+      toast.error("Failed to refresh records");
+    } else if (data) {
+      setVerifications(data as VerificationRecord[]);
+      toast.success("Verification status updated");
+    }
   };
 
   // Redirect to auth page if not loading and no user is logged in
@@ -293,30 +310,7 @@ const DashboardPage = () => {
                     <TableCell className="font-medium">{item.id.substring(0, 8)}</TableCell>
                     <TableCell>{formatDate(item.created_at)}</TableCell>
                     <TableCell>
-                      {item.status === "verified" && (
-                        <span className="flex items-center">
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 mr-2">
-                            Verified
-                          </Badge>
-                          Verification complete
-                        </span>
-                      )}
-                      {item.status === "pending" && (
-                        <span className="flex items-center">
-                          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200 mr-2">
-                            Pending
-                          </Badge>
-                          In review
-                        </span>
-                      )}
-                      {item.status === "rejected" && (
-                        <span className="flex items-center">
-                          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 mr-2">
-                            Rejected
-                          </Badge>
-                          Failed verification
-                        </span>
-                      )}
+                      <VerificationStatus status={item.status} />
                     </TableCell>
                     <TableCell className="font-mono text-xs">
                       {item.document_hash.substring(0, 16)}...
