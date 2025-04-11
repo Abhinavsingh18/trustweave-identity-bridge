@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -16,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { MoreVertical, Edit, Copy, Trash, ExternalLink, AlertTriangle } from "lucide-react";
+import { MoreVertical, Edit, Copy, Trash, ExternalLink, AlertTriangle, RefreshCw } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +24,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
 
 import Layout from "@/components/Layout";
 import { useAuth } from "@/contexts/AuthContext";
@@ -46,20 +46,46 @@ const DashboardPage = () => {
   const [verifications, setVerifications] = useState<VerificationRecord[]>([]);
   const [isLoadingVerifications, setIsLoadingVerifications] = useState(true);
 
-  // Fetch verification status from blockchain service
-  useEffect(() => {
-    const fetchVerificationStatus = async () => {
-      if (user) {
-        try {
-          const status = await getVerificationStatus(user.email || "");
-          setVerificationStatus(status);
-        } catch (error) {
-          console.error("Failed to fetch verification status:", error);
-          setVerificationStatus("rejected"); // Fallback in case of error
-        }
+  // Fetch verification status from database first, then blockchain as backup
+  const fetchVerificationStatus = async () => {
+    if (!user) return;
+    
+    try {
+      setIsLoadingVerifications(true);
+      
+      // First check if there's a verified record in the database
+      const { data: verifiedRecord, error: dbError } = await supabase
+        .from('verifications')
+        .select('status')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      if (dbError) {
+        console.error("Error fetching verification status from database:", dbError);
+        throw dbError;
       }
-    };
+      
+      // If we have a record in the database, use that status
+      if (verifiedRecord && verifiedRecord.length > 0) {
+        console.log("Found verification status in database:", verifiedRecord[0].status);
+        setVerificationStatus(verifiedRecord[0].status);
+      } else {
+        // Otherwise fall back to blockchain service
+        console.log("No verification record in database, checking blockchain...");
+        const status = await getVerificationStatus(user.email || "");
+        setVerificationStatus(status);
+      }
+    } catch (error) {
+      console.error("Failed to fetch verification status:", error);
+      setVerificationStatus("rejected"); // Fallback in case of error
+    } finally {
+      setIsLoadingVerifications(false);
+    }
+  };
 
+  // Fetch verification status when component mounts or when user changes
+  useEffect(() => {
     fetchVerificationStatus();
   }, [user]);
 
@@ -93,6 +119,15 @@ const DashboardPage = () => {
     
     fetchVerificationRecords();
   }, [user]);
+
+  // Function to refresh verification status manually
+  const handleRefresh = async () => {
+    if (!user) return;
+    
+    toast.info("Refreshing verification status...");
+    await fetchVerificationStatus();
+    toast.success("Verification status updated");
+  };
 
   // Redirect to auth page if not loading and no user is logged in
   useEffect(() => {
@@ -152,34 +187,45 @@ const DashboardPage = () => {
                 <AvatarImage src={`https://api.dicebear.com/7.x/pixel-art/svg?seed=${user?.email}`} />
                 <AvatarFallback>{user?.email?.[0]?.toUpperCase() || "?"}</AvatarFallback>
               </Avatar>
-              <div>
+              <div className="flex-1">
                 <p className="text-sm font-medium leading-none">{user?.email}</p>
-                <p className="text-sm text-muted-foreground">
-                  {verificationStatus === "verified" && (
-                    <span className="flex items-center">
-                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 mr-2">
-                        Verified
-                      </Badge>
-                      Account Verified
-                    </span>
-                  )}
-                  {verificationStatus === "pending" && (
-                    <span className="flex items-center">
-                      <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200 mr-2">
-                        Pending
-                      </Badge>
-                      Verification in progress
-                    </span>
-                  )}
-                  {verificationStatus === "rejected" && (
-                    <span className="flex items-center">
-                      <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 mr-2">
-                        Unverified
-                      </Badge>
-                      Account not verified
-                    </span>
-                  )}
-                </p>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-sm text-muted-foreground">
+                    {verificationStatus === "verified" && (
+                      <span className="flex items-center">
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 mr-2">
+                          Verified
+                        </Badge>
+                        Account Verified
+                      </span>
+                    )}
+                    {verificationStatus === "pending" && (
+                      <span className="flex items-center">
+                        <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200 mr-2">
+                          Pending
+                        </Badge>
+                        Verification in progress
+                      </span>
+                    )}
+                    {verificationStatus === "rejected" && (
+                      <span className="flex items-center">
+                        <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 mr-2">
+                          Unverified
+                        </Badge>
+                        Account not verified
+                      </span>
+                    )}
+                  </p>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={handleRefresh}
+                    className="text-xs"
+                  >
+                    <RefreshCw className="h-3 w-3 mr-1" />
+                    Refresh
+                  </Button>
+                </div>
                 {verificationStatus === "rejected" && (
                   <div className="mt-2">
                     <Button 
@@ -288,7 +334,10 @@ const DashboardPage = () => {
                           <DropdownMenuItem>
                             <ExternalLink className="mr-2 h-4 w-4" /> View Details
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => {
+                            navigator.clipboard.writeText(item.document_hash);
+                            toast.success("Hash copied to clipboard");
+                          }}>
                             <Copy className="mr-2 h-4 w-4" /> Copy Hash
                           </DropdownMenuItem>
                         </DropdownMenuContent>
