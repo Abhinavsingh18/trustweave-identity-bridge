@@ -17,6 +17,13 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
       console.log(`Supabase Request: ${options?.method || 'GET'} ${url}`);
       return fetch(url, options).then(res => {
         console.log(`Supabase API Response: ${res.status} for ${res.url}`);
+        // Log response body for debugging if there's an error
+        if (res.status >= 400) {
+          return res.clone().text().then(body => {
+            console.error(`Error response body: ${body}`);
+            return res;
+          });
+        }
         return res;
       });
     },
@@ -95,16 +102,17 @@ async function checkVerificationRecords() {
             address: '123 Test St, Test City' 
           } 
         }),
-        wallet_address: '0xTestWalletAddress123456789',
+        wallet_address: '0x1234567890abcdef1234567890abcdef12345678',
         signature: 'test-signature-123'
       };
       
-      const { data, error } = await supabase.from('verifications').insert(testRecord);
+      const { data, error } = await supabase.from('verifications').insert(testRecord).select();
       
       if (error) {
         console.error('Failed to create test record:', error.message);
+        console.error('Error details:', error);
       } else {
-        console.log('Test record created successfully!');
+        console.log('Test record created successfully!', data);
       }
     }
   } catch (error) {
@@ -135,13 +143,32 @@ export const createVerification = async (verificationData: {
       : verificationData.document_path
   };
   
-  const { data, error } = await supabase.from('verifications').insert(finalData);
+  const { data, error } = await supabase.from('verifications').insert(finalData).select();
   
   if (error) {
     console.error('Error creating verification record:', error);
     throw error;
   }
   
+  return data;
+};
+
+// Helper function to update verification status
+export const updateVerificationStatus = async (id: string, status: "verified" | "rejected" | "pending") => {
+  console.log(`Updating verification status in database: ID ${id} to ${status}`);
+  
+  const { data, error } = await supabase
+    .from('verifications')
+    .update({ status })
+    .eq('id', id)
+    .select();
+
+  if (error) {
+    console.error("Error updating verification status:", error);
+    throw error;
+  }
+  
+  console.log("Verification status updated successfully:", data);
   return data;
 };
 

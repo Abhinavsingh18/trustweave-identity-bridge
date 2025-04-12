@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { supabase, refreshSupabaseData, getAllVerifications } from "@/integrations/supabase/client";
+import { supabase, refreshSupabaseData, getAllVerifications, updateVerificationStatus } from "@/integrations/supabase/client";
 import {
   Table,
   TableBody,
@@ -269,19 +269,12 @@ const AdminDashboard = () => {
     try {
       console.log(`Updating verification status for ID ${id} to ${status}`);
       
-      const { error } = await supabase
-        .from('verifications')
-        .update({ status })
-        .eq('id', id);
-
-      if (error) {
-        console.error("Error updating verification status:", error);
-        throw error;
-      }
+      // Use the new helper function to update status
+      await updateVerificationStatus(id, status);
 
       console.log("Verification status updated successfully");
       
-      // Update the local state
+      // Update the local state immediately for better UX
       setVerifications(
         verifications.map(record => 
           record.id === id ? { ...record, status } : record
@@ -294,7 +287,7 @@ const AdminDashboard = () => {
       });
       
       // Force refresh all records to ensure we're in sync with the database
-      handleRefresh();
+      await handleRefresh();
     } catch (error) {
       console.error('Error updating verification status:', error);
       toast({
