@@ -87,12 +87,19 @@ async function checkVerificationRecords() {
     } else {
       console.log('No verification records found to sample.');
       
+      // Check if we have auth session before creating a test record
+      const { data: authData } = await supabase.auth.getSession();
+      if (!authData?.session?.user) {
+        console.log('No authenticated user - skipping test record creation');
+        return;
+      }
+      
       // Create a test record if no records exist - Using proper UUID format
       console.log('Creating a test verification record for debugging...');
       const testRecord = {
         status: 'pending',
-        document_hash: 'test-hash-123456789',
-        user_id: uuidv4(), // Generate a proper UUID
+        document_hash: 'test-hash-' + Date.now(),
+        user_id: authData.session.user.id || uuidv4(), // Use authenticated user ID if available
         document_path: JSON.stringify({ 
           personalInfo: { 
             fullName: 'Test User', 
@@ -143,82 +150,113 @@ export const createVerification = async (verificationData: {
       : verificationData.document_path
   };
   
-  const { data, error } = await supabase.from('verifications').insert(finalData).select();
-  
-  if (error) {
-    console.error('Error creating verification record:', error);
+  try {
+    console.log('Creating verification record:', finalData);
+    const { data, error } = await supabase.from('verifications').insert(finalData).select();
+    
+    if (error) {
+      console.error('Error creating verification record:', error);
+      throw error;
+    }
+    
+    console.log('Verification record created successfully:', data);
+    return data;
+  } catch (error) {
+    console.error('Error in createVerification:', error);
     throw error;
   }
-  
-  return data;
 };
 
 // Helper function to update verification status
 export const updateVerificationStatus = async (id: string, status: "verified" | "rejected" | "pending") => {
   console.log(`Updating verification status in database: ID ${id} to ${status}`);
   
-  const { data, error } = await supabase
-    .from('verifications')
-    .update({ status })
-    .eq('id', id)
-    .select();
+  try {
+    const { data, error } = await supabase
+      .from('verifications')
+      .update({ status })
+      .eq('id', id)
+      .select();
 
-  if (error) {
-    console.error("Error updating verification status:", error);
+    if (error) {
+      console.error("Error updating verification status:", error);
+      throw error;
+    }
+    
+    console.log("Verification status updated successfully:", data);
+    return data;
+  } catch (error) {
+    console.error("Error in updateVerificationStatus:", error);
     throw error;
   }
-  
-  console.log("Verification status updated successfully:", data);
-  return data;
 };
 
 // Ensure that we refresh properly and fetch all records
 export const getAllVerifications = async () => {
-  // Call this with no filters to get ALL verifications
-  const { data, error } = await supabase
-    .from('verifications')
-    .select('*')
-    .order('created_at', { ascending: false });
+  try {
+    console.log("Fetching all verifications...");
+    // Call this with no filters to get ALL verifications
+    const { data, error } = await supabase
+      .from('verifications')
+      .select('*')
+      .order('created_at', { ascending: false });
+      
+    if (error) {
+      console.error('Error fetching all verifications:', error);
+      throw error;
+    }
     
-  if (error) {
-    console.error('Error fetching all verifications:', error);
+    console.log('Fetched verification records:', data?.length || 0);
+    return data || [];
+  } catch (error) {
+    console.error("Error in getAllVerifications:", error);
     throw error;
   }
-  
-  console.log('Fetched verification records:', data?.length || 0);
-  return data || [];
 };
 
 // Get verifications for a specific user
 export const getUserVerifications = async (userId: string) => {
-  const { data, error } = await supabase
-    .from('verifications')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
+  try {
+    console.log(`Fetching verifications for user ${userId}...`);
+    const { data, error } = await supabase
+      .from('verifications')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+      
+    if (error) {
+      console.error(`Error fetching verifications for user ${userId}:`, error);
+      throw error;
+    }
     
-  if (error) {
-    console.error(`Error fetching verifications for user ${userId}:`, error);
+    console.log(`Found ${data?.length || 0} records for user ${userId}`);
+    return data || [];
+  } catch (error) {
+    console.error("Error in getUserVerifications:", error);
     throw error;
   }
-  
-  return data || [];
 };
 
 // Get verification by ID
 export const getVerificationById = async (id: string) => {
-  const { data, error } = await supabase
-    .from('verifications')
-    .select('*')
-    .eq('id', id)
-    .single();
+  try {
+    console.log(`Fetching verification with ID ${id}...`);
+    const { data, error } = await supabase
+      .from('verifications')
+      .select('*')
+      .eq('id', id)
+      .single();
+      
+    if (error) {
+      console.error(`Error fetching verification with ID ${id}:`, error);
+      throw error;
+    }
     
-  if (error) {
-    console.error(`Error fetching verification with ID ${id}:`, error);
+    return data;
+  } catch (error) {
+    console.error("Error in getVerificationById:", error);
     throw error;
   }
-  
-  return data;
 };
 
 // Force refresh all data in the client

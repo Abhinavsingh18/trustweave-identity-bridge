@@ -228,27 +228,35 @@ const AdminDashboard = () => {
     };
   };
 
-  // Fetch verification records
+  // Fetch verification records with proper error handling
   const fetchVerifications = async () => {
     setLoading(true);
     setError(null);
     try {
       console.log("Fetching verification records from Supabase...");
       
-      // Force refresh Supabase data and log the result
+      // Use the helper function to fetch all records
+      // Note: This uses our getAllVerifications function which has better error handling
       const data = await refreshSupabaseData();
       
       console.log("Fetched records:", data);
       
-      // Process records to extract user emails from document_path
       if (data && data.length > 0) {
+        // Process records to extract user details
         const recordsWithUserDetails = data.map(processVerificationRecord);
-        
         console.log("Processed verification records:", recordsWithUserDetails);
         setVerifications(recordsWithUserDetails as VerificationRecord[]);
+        toast({
+          title: "Records loaded",
+          description: `Found ${recordsWithUserDetails.length} verification records`,
+        });
       } else {
         console.log("No verification records found");
         setVerifications([]);
+        toast({
+          title: "No records found",
+          description: "No verification records in the database",
+        });
       }
     } catch (error) {
       console.error('Error fetching verification records:', error);
@@ -264,12 +272,12 @@ const AdminDashboard = () => {
     }
   };
 
-  // Update verification status
+  // Update verification status using our helper function
   const updateStatus = async (id: string, status: "verified" | "rejected") => {
     try {
       console.log(`Updating verification status for ID ${id} to ${status}`);
       
-      // Use the new helper function to update status
+      // Use the helper function to update status
       await updateVerificationStatus(id, status);
 
       console.log("Verification status updated successfully");
@@ -310,7 +318,7 @@ const AdminDashboard = () => {
     navigate("/admin");
   };
 
-  // Manual refresh function
+  // Manual refresh function with better error handling
   const handleRefresh = async () => {
     toast({
       title: "Refreshing data",
@@ -321,7 +329,7 @@ const AdminDashboard = () => {
     setError(null);
     
     try {
-      // Get fresh data
+      // Force refresh all data using our helper function
       const data = await refreshSupabaseData();
       
       console.log("Refreshed data from Supabase:", data);
@@ -330,15 +338,17 @@ const AdminDashboard = () => {
       if (data && data.length > 0) {
         const recordsWithUserDetails = data.map(processVerificationRecord);
         setVerifications(recordsWithUserDetails as VerificationRecord[]);
+        toast({
+          title: "Data refreshed",
+          description: `Found ${recordsWithUserDetails.length} verification records`
+        });
       } else {
         setVerifications([]);
+        toast({
+          title: "No records found",
+          description: "No verification records in the database"
+        });
       }
-      
-      setLoading(false);
-      toast({
-        title: "Data refreshed",
-        description: "Verification records have been updated"
-      });
     } catch (error) {
       console.error('Error refreshing verification data:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -348,6 +358,7 @@ const AdminDashboard = () => {
         title: "Refresh failed",
         description: "Could not refresh verification data. Please try again."
       });
+    } finally {
       setLoading(false);
     }
   };
@@ -485,7 +496,7 @@ const AdminDashboard = () => {
                                   </div>
                                   <div>
                                     <Label>Document Data</Label>
-                                    <pre className="text-xs font-mono mt-1 bg-gray-50 p-2 rounded-md overflow-auto max-h-40">
+                                    <pre className="text-xs font-mono mt-1 bg-gray-5 p-2 rounded-md overflow-auto max-h-40">
                                       {selectedRecord?.document_path ? 
                                         (typeof selectedRecord.document_path === 'string' ? 
                                           selectedRecord.document_path : 
