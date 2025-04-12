@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { supabase, verifySupabaseConnection, getAllVerifications } from "@/integrations/supabase/client";
+import { supabase, refreshSupabaseData, getAllVerifications } from "@/integrations/supabase/client";
 import {
   Table,
   TableBody,
@@ -26,7 +26,6 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { Badge } from "@/components/ui/badge";
 import { Check, Eye, RefreshCw, ShieldCheck, ShieldX, UserCog, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import VerificationStatus from "@/components/VerificationStatus";
@@ -164,97 +163,6 @@ const AdminDashboard = () => {
 
   // Fetch all verification records when component mounts
   useEffect(() => {
-    const fetchVerifications = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        console.log("Fetching verification records from Supabase...");
-        
-        // Check connection first and ensure we have at least one test record
-        await verifySupabaseConnection();
-        
-        // Get all verification records using our helper
-        const data = await getAllVerifications();
-        
-        console.log("Fetched records:", data);
-        
-        // Process records to extract user emails from document_path
-        if (data && data.length > 0) {
-          const recordsWithUserDetails = data.map(record => {
-            // Try to extract user email from document_path
-            let userEmail = 'Unknown user';
-            let personalInfo = null;
-            
-            try {
-              if (record.document_path) {
-                // Log the raw document_path for debugging
-                console.log(`Raw document_path for record ${record.id}:`, record.document_path);
-                
-                // Try to parse as JSON
-                let docInfo;
-                
-                if (typeof record.document_path === 'string') {
-                  try {
-                    docInfo = JSON.parse(record.document_path);
-                  } catch (e) {
-                    console.log(`Not valid JSON for record ${record.id}:`, record.document_path);
-                    // If it's not valid JSON, try to use it as is
-                    if (record.document_path.includes('@')) {
-                      userEmail = record.document_path;
-                    }
-                  }
-                } else {
-                  // If it's already an object, use it directly
-                  docInfo = record.document_path;
-                }
-                
-                if (docInfo) {
-                  console.log(`Parsed document_path for record ${record.id}:`, docInfo);
-                  
-                  if (docInfo.personalInfo) {
-                    userEmail = docInfo.personalInfo.email || 'Email not provided';
-                    personalInfo = docInfo.personalInfo;
-                    console.log(`Extracted user email for record ${record.id}:`, userEmail);
-                  }
-                  
-                  // If not found in personalInfo, try direct access
-                  if (!userEmail && docInfo.email) {
-                    userEmail = docInfo.email;
-                    console.log(`Found email directly in document_path for record ${record.id}:`, userEmail);
-                  }
-                }
-              }
-            } catch (e) {
-              console.error(`Error parsing document_path for record ${record.id}:`, e, record.document_path);
-            }
-            
-            return {
-              ...record,
-              user_email: userEmail,
-              personalInfo
-            };
-          });
-          
-          console.log("Processed verification records:", recordsWithUserDetails);
-          setVerifications(recordsWithUserDetails as VerificationRecord[]);
-        } else {
-          console.log("No verification records found");
-          setVerifications([]);
-        }
-      } catch (error) {
-        console.error('Error fetching verification records:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        setError(`Could not load verification records: ${errorMessage}`);
-        toast({
-          variant: "destructive",
-          title: "Error loading records",
-          description: "Could not load verification records. Please try again."
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchVerifications();
     
     // Set up a polling interval to refresh data
@@ -262,7 +170,99 @@ const AdminDashboard = () => {
     
     // Cleanup interval on component unmount
     return () => clearInterval(intervalId);
-  }, [toast]);
+  }, []);
+
+  // Process a verification record to extract user details
+  const processVerificationRecord = (record: any): VerificationRecord => {
+    // Try to extract user email from document_path
+    let userEmail = 'Unknown user';
+    let personalInfo = null;
+    
+    try {
+      if (record.document_path) {
+        // Log the raw document_path for debugging
+        console.log(`Raw document_path for record ${record.id}:`, record.document_path);
+        
+        // Try to parse as JSON
+        let docInfo;
+        
+        if (typeof record.document_path === 'string') {
+          try {
+            docInfo = JSON.parse(record.document_path);
+          } catch (e) {
+            console.log(`Not valid JSON for record ${record.id}:`, record.document_path);
+            // If it's not valid JSON, try to use it as is
+            if (record.document_path.includes('@')) {
+              userEmail = record.document_path;
+            }
+          }
+        } else {
+          // If it's already an object, use it directly
+          docInfo = record.document_path;
+        }
+        
+        if (docInfo) {
+          console.log(`Parsed document_path for record ${record.id}:`, docInfo);
+          
+          if (docInfo.personalInfo) {
+            userEmail = docInfo.personalInfo.email || 'Email not provided';
+            personalInfo = docInfo.personalInfo;
+            console.log(`Extracted user email for record ${record.id}:`, userEmail);
+          }
+          
+          // If not found in personalInfo, try direct access
+          if (!userEmail && docInfo.email) {
+            userEmail = docInfo.email;
+            console.log(`Found email directly in document_path for record ${record.id}:`, userEmail);
+          }
+        }
+      }
+    } catch (e) {
+      console.error(`Error parsing document_path for record ${record.id}:`, e, record.document_path);
+    }
+    
+    return {
+      ...record,
+      user_email: userEmail,
+      personalInfo
+    };
+  };
+
+  // Fetch verification records
+  const fetchVerifications = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      console.log("Fetching verification records from Supabase...");
+      
+      // Force refresh Supabase data and log the result
+      const data = await refreshSupabaseData();
+      
+      console.log("Fetched records:", data);
+      
+      // Process records to extract user emails from document_path
+      if (data && data.length > 0) {
+        const recordsWithUserDetails = data.map(processVerificationRecord);
+        
+        console.log("Processed verification records:", recordsWithUserDetails);
+        setVerifications(recordsWithUserDetails as VerificationRecord[]);
+      } else {
+        console.log("No verification records found");
+        setVerifications([]);
+      }
+    } catch (error) {
+      console.error('Error fetching verification records:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setError(`Could not load verification records: ${errorMessage}`);
+      toast({
+        variant: "destructive",
+        title: "Error loading records",
+        description: "Could not load verification records. Please try again."
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Update verification status
   const updateStatus = async (id: string, status: "verified" | "rejected") => {
@@ -328,56 +328,14 @@ const AdminDashboard = () => {
     setError(null);
     
     try {
-      // Verify connection first
-      await verifySupabaseConnection();
-      
-      // Fetch fresh data from Supabase using our helper
-      const data = await getAllVerifications();
+      // Get fresh data
+      const data = await refreshSupabaseData();
       
       console.log("Refreshed data from Supabase:", data);
       
-      // Process records similarly to the useEffect
+      // Process records
       if (data && data.length > 0) {
-        const recordsWithUserDetails = data.map(record => {
-          let userEmail = 'Unknown user';
-          let personalInfo = null;
-          
-          try {
-            if (record.document_path) {
-              console.log(`Raw document_path in refresh for record ${record.id}:`, record.document_path);
-              let docInfo;
-              
-              if (typeof record.document_path === 'string') {
-                try {
-                  docInfo = JSON.parse(record.document_path);
-                } catch (e) {
-                  // Not valid JSON, try to use as is if it looks like an email
-                  if (record.document_path.includes('@')) {
-                    userEmail = record.document_path;
-                  }
-                }
-              } else {
-                docInfo = record.document_path;
-              }
-              
-              if (docInfo && docInfo.personalInfo) {
-                userEmail = docInfo.personalInfo.email || 'Email not provided';
-                personalInfo = docInfo.personalInfo;
-              } else if (docInfo && docInfo.email) {
-                userEmail = docInfo.email;
-              }
-            }
-          } catch (e) {
-            console.error(`Error parsing document_path during refresh for record ${record.id}:`, e);
-          }
-          
-          return {
-            ...record,
-            user_email: userEmail,
-            personalInfo
-          };
-        });
-        
+        const recordsWithUserDetails = data.map(processVerificationRecord);
         setVerifications(recordsWithUserDetails as VerificationRecord[]);
       } else {
         setVerifications([]);
