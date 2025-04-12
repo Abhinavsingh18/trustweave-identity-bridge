@@ -6,9 +6,6 @@ import type { Database } from './types';
 const SUPABASE_URL = "https://lwysmywblcsmgxvzkqka.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx3eXNteXdibGNzbWd4dnprcWthIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM4NTE2MzksImV4cCI6MjA1OTQyNzYzOX0.NhK5JBAU2rNvI_MExoVXflNIZv6Ze6A7ZaN0kY8DGTU";
 
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
-
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     persistSession: true,
@@ -16,6 +13,7 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   },
   global: {
     fetch: (url: string, options?: RequestInit) => {
+      console.log(`Supabase Request: ${options?.method || 'GET'} ${url}`);
       return fetch(url, options).then(res => {
         console.log(`Supabase API Response: ${res.status} for ${res.url}`);
         return res;
@@ -43,6 +41,10 @@ async function checkVerificationRecords() {
       
     if (countError) {
       console.error('Failed to count verification records:', countError.message);
+      // Try to get more detailed error information
+      if (countError.code) {
+        console.error('Error code:', countError.code);
+      }
       return;
     }
     
@@ -73,9 +75,36 @@ async function checkVerificationRecords() {
     }
     
     if (sampleData && sampleData.length > 0) {
-      console.log('Sample verification record structure:', sampleData[0]);
+      console.log('Sample verification record structure:', JSON.stringify(sampleData[0], null, 2));
     } else {
       console.log('No verification records found to sample.');
+      
+      // Create a test record if no records exist
+      console.log('Creating a test verification record for debugging...');
+      const testRecord = {
+        status: 'pending',
+        document_hash: 'test-hash-123456789',
+        user_id: 'test-user-123',
+        document_path: JSON.stringify({ 
+          personalInfo: { 
+            fullName: 'Test User', 
+            email: 'test@example.com',
+            dateOfBirth: '1990-01-01',
+            nationality: 'United States',
+            address: '123 Test St, Test City' 
+          } 
+        }),
+        wallet_address: '0xTestWalletAddress123456789',
+        signature: 'test-signature-123'
+      };
+      
+      const { data, error } = await supabase.from('verifications').insert(testRecord);
+      
+      if (error) {
+        console.error('Failed to create test record:', error.message);
+      } else {
+        console.log('Test record created successfully!');
+      }
     }
   } catch (error) {
     console.error('Error checking verification records:', error);
@@ -87,3 +116,62 @@ checkVerificationRecords();
 
 // Export a function to manually verify connection
 export const verifySupabaseConnection = checkVerificationRecords;
+
+// Create a helper function to create a new verification record
+export const createVerification = async (verificationData: {
+  status: "pending" | "verified" | "rejected";
+  document_hash: string;
+  user_id: string;
+  document_path: string | object;
+  wallet_address: string;
+  signature: string;
+}) => {
+  // If document_path is an object, stringify it
+  const finalData = {
+    ...verificationData,
+    document_path: typeof verificationData.document_path === 'object' 
+      ? JSON.stringify(verificationData.document_path) 
+      : verificationData.document_path
+  };
+  
+  const { data, error } = await supabase.from('verifications').insert(finalData);
+  
+  if (error) {
+    console.error('Error creating verification record:', error);
+    throw error;
+  }
+  
+  return data;
+};
+
+// Ensure that we refresh properly and fetch all records
+export const getAllVerifications = async () => {
+  // Call this with no filters to get ALL verifications
+  const { data, error } = await supabase
+    .from('verifications')
+    .select('*')
+    .order('created_at', { ascending: false });
+    
+  if (error) {
+    console.error('Error fetching all verifications:', error);
+    throw error;
+  }
+  
+  return data;
+};
+
+// Get verifications for a specific user
+export const getUserVerifications = async (userId: string) => {
+  const { data, error } = await supabase
+    .from('verifications')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+    
+  if (error) {
+    console.error(`Error fetching verifications for user ${userId}:`, error);
+    throw error;
+  }
+  
+  return data;
+};

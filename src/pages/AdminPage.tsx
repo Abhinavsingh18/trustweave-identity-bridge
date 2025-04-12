@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
@@ -7,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { supabase, verifySupabaseConnection } from "@/integrations/supabase/client";
+import { supabase, verifySupabaseConnection, getAllVerifications } from "@/integrations/supabase/client";
 import {
   Table,
   TableBody,
@@ -30,6 +29,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Check, Eye, RefreshCw, ShieldCheck, ShieldX, UserCog, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import VerificationStatus from "@/components/VerificationStatus";
 
 type VerificationRecord = {
   id: string;
@@ -170,21 +170,12 @@ const AdminDashboard = () => {
       try {
         console.log("Fetching verification records from Supabase...");
         
-        // Check connection first
+        // Check connection first and ensure we have at least one test record
         await verifySupabaseConnection();
         
-        // Get all verification records, ordered by newest first
-        const { data, error } = await supabase
-          .from('verifications')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (error) {
-          console.error("Error fetching verifications:", error);
-          setError(`Failed to fetch records: ${error.message}`);
-          throw error;
-        }
-
+        // Get all verification records using our helper
+        const data = await getAllVerifications();
+        
         console.log("Fetched records:", data);
         
         // Process records to extract user emails from document_path
@@ -301,6 +292,9 @@ const AdminDashboard = () => {
         title: `Verification ${status === "verified" ? "approved" : "rejected"}`,
         description: `The verification record has been ${status}`,
       });
+      
+      // Force refresh all records to ensure we're in sync with the database
+      handleRefresh();
     } catch (error) {
       console.error('Error updating verification status:', error);
       toast({
@@ -324,7 +318,7 @@ const AdminDashboard = () => {
   };
 
   // Manual refresh function
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     toast({
       title: "Refreshing data",
       description: "Fetching the latest verification records"
@@ -333,82 +327,78 @@ const AdminDashboard = () => {
     setLoading(true);
     setError(null);
     
-    // Verify connection first
-    verifySupabaseConnection();
-    
-    // Fetch fresh data from Supabase
-    supabase
-      .from('verifications')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .then(({ data, error }) => {
-        if (error) {
-          console.error("Error refreshing verification data:", error);
-          setError(`Failed to refresh data: ${error.message}`);
-          toast({
-            variant: "destructive",
-            title: "Refresh failed",
-            description: "Could not refresh verification data. Please try again."
-          });
-          setLoading(false);
-          return;
-        }
-        
-        console.log("Refreshed data from Supabase:", data);
-        
-        // Process records similarly to the useEffect
-        if (data && data.length > 0) {
-          const recordsWithUserDetails = data.map(record => {
-            let userEmail = 'Unknown user';
-            let personalInfo = null;
-            
-            try {
-              if (record.document_path) {
-                console.log(`Raw document_path in refresh for record ${record.id}:`, record.document_path);
-                let docInfo;
-                
-                if (typeof record.document_path === 'string') {
-                  try {
-                    docInfo = JSON.parse(record.document_path);
-                  } catch (e) {
-                    // Not valid JSON, try to use as is if it looks like an email
-                    if (record.document_path.includes('@')) {
-                      userEmail = record.document_path;
-                    }
-                  }
-                } else {
-                  docInfo = record.document_path;
-                }
-                
-                if (docInfo && docInfo.personalInfo) {
-                  userEmail = docInfo.personalInfo.email || 'Email not provided';
-                  personalInfo = docInfo.personalInfo;
-                } else if (docInfo && docInfo.email) {
-                  userEmail = docInfo.email;
-                }
-              }
-            } catch (e) {
-              console.error(`Error parsing document_path during refresh for record ${record.id}:`, e);
-            }
-            
-            return {
-              ...record,
-              user_email: userEmail,
-              personalInfo
-            };
-          });
+    try {
+      // Verify connection first
+      await verifySupabaseConnection();
+      
+      // Fetch fresh data from Supabase using our helper
+      const data = await getAllVerifications();
+      
+      console.log("Refreshed data from Supabase:", data);
+      
+      // Process records similarly to the useEffect
+      if (data && data.length > 0) {
+        const recordsWithUserDetails = data.map(record => {
+          let userEmail = 'Unknown user';
+          let personalInfo = null;
           
-          setVerifications(recordsWithUserDetails as VerificationRecord[]);
-        } else {
-          setVerifications([]);
-        }
-        
-        setLoading(false);
-        toast({
-          title: "Data refreshed",
-          description: "Verification records have been updated"
+          try {
+            if (record.document_path) {
+              console.log(`Raw document_path in refresh for record ${record.id}:`, record.document_path);
+              let docInfo;
+              
+              if (typeof record.document_path === 'string') {
+                try {
+                  docInfo = JSON.parse(record.document_path);
+                } catch (e) {
+                  // Not valid JSON, try to use as is if it looks like an email
+                  if (record.document_path.includes('@')) {
+                    userEmail = record.document_path;
+                  }
+                }
+              } else {
+                docInfo = record.document_path;
+              }
+              
+              if (docInfo && docInfo.personalInfo) {
+                userEmail = docInfo.personalInfo.email || 'Email not provided';
+                personalInfo = docInfo.personalInfo;
+              } else if (docInfo && docInfo.email) {
+                userEmail = docInfo.email;
+              }
+            }
+          } catch (e) {
+            console.error(`Error parsing document_path during refresh for record ${record.id}:`, e);
+          }
+          
+          return {
+            ...record,
+            user_email: userEmail,
+            personalInfo
+          };
         });
+        
+        setVerifications(recordsWithUserDetails as VerificationRecord[]);
+      } else {
+        setVerifications([]);
+      }
+      
+      setLoading(false);
+      toast({
+        title: "Data refreshed",
+        description: "Verification records have been updated"
       });
+    } catch (error) {
+      console.error('Error refreshing verification data:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setError(`Failed to refresh data: ${errorMessage}`);
+      toast({
+        variant: "destructive",
+        title: "Refresh failed",
+        description: "Could not refresh verification data. Please try again."
+      });
+      setLoading(false);
+    }
   };
 
   return (
@@ -479,21 +469,7 @@ const AdminDashboard = () => {
                       <TableCell>{record.user_email || record.user_id.substring(0, 8)}</TableCell>
                       <TableCell>{formatDate(record.created_at || new Date().toISOString())}</TableCell>
                       <TableCell>
-                        {record.status === "verified" && (
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                            Verified
-                          </Badge>
-                        )}
-                        {record.status === "pending" && (
-                          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
-                            Pending
-                          </Badge>
-                        )}
-                        {record.status === "rejected" && (
-                          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                            Rejected
-                          </Badge>
-                        )}
+                        <VerificationStatus status={record.status} />
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
